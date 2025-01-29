@@ -1,0 +1,20 @@
+{
+    "manifest_version": 3,
+    "name": "Event Background Color Changer",
+    "version": "1.0",
+    "description": "Change the background color of events in Opera GX based on user input.",
+    "permissions": [
+      "activeTab"
+    ],
+    "content_scripts": [
+      {
+        "matches": ["https://calendar.google.com/calendar/*"],
+        "js": ["js/content.js"]
+      }
+    ],
+    "host_permissions": [
+      "http://*/*",
+      "https://*/*"
+    ]
+  }
+  

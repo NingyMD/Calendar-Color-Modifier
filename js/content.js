@@ -39,6 +39,7 @@ document.body.prepend(colorInput);
 document.body.prepend(colorPicker);
 document.body.prepend(applyButton);
 document.body.prepend(saveButton);
+document.body.style.backgroundColor = "#f8fafd";
 
 // Function to clear selected event
 clearSelectionButton.addEventListener('click', () => {
@@ -130,23 +131,86 @@ function applyBackgroundColor() {
       const eventTime = extractEventTime(element);
 
       const nameMatches = nameElement && getElementText(nameElement) === namespace;
-      const timeMatches = time && eventTime.includes(time);
+      const timeMatches = time && eventTime.includes(time);  // Only filter by time if time is not empty
 
-      if (nameMatches && (!time || timeMatches)) {
+      if (nameMatches && (!time || timeMatches)) {  // Skip time filter if time is empty
         element.style.backgroundColor = color || defaultColors[element.dataset.eventid] || '';
       }
     });
   }
 }
 
-// Function to save the applied background color as "custom"
+
+// Function to save the background color
 function saveCustomBackgroundColor() {
   const namespace = namespaceInput.value.trim();
   const color = colorInput.value.trim();
   const time = normalizeTime(timeInput.value.trim());
 
   if (selectedElement) {
+    // Save by unique event ID if an element is selected
     savedColors[selectedElement.dataset.eventid] = color;
+  } else {
+    // Save by Name and Time if no specific element is selected
+    const key = `${namespace}_${time}`;
+    savedColors[key] = color;
+  }
+
+  // Immediately save to localStorage and reapply colors
+  localStorage.setItem('savedColors', JSON.stringify(savedColors));
+  reapplySavedColors();  // Reapply saved colors after saving
+}
+
+// Function to reapply saved colors dynamically
+function reapplySavedColors() {
+  document.querySelectorAll(".GTG3wb").forEach((element) => {
+    const eventId = element.dataset.eventid;
+    const namespaceElement = element.querySelector(".I0UMhf");
+    const eventTime = extractEventTime(element);
+    const namespace = getElementText(namespaceElement);
+
+    // Apply color based on unique event ID first (priority)
+    if (savedColors[eventId]) {
+      element.style.backgroundColor = savedColors[eventId];
+    }
+    // If no saved color for unique event ID, apply by Name and Time
+    else if (savedColors[`${namespace}_${eventTime}`]) {
+      element.style.backgroundColor = savedColors[`${namespace}_${eventTime}`];
+    }
+    // Fallback to default colors if nothing is saved
+    else {
+      element.style.backgroundColor = defaultColors[eventId] || '';
+    }
+  });
+}
+
+// Function to handle event updates or interactions
+function handleEventInteraction(event) {
+  const element = event.target.closest(".GTG3wb");
+  if (element) {
+    const eventId = element.dataset.eventid;
+    const namespaceElement = element.querySelector(".I0UMhf");
+    const eventTime = extractEventTime(element);
+    const namespace = getElementText(namespaceElement);
+
+    // Apply saved color based on priority (unique ID first)
+    if (savedColors[eventId]) {
+      element.style.backgroundColor = savedColors[eventId];
+    } else if (savedColors[`${namespace}_${eventTime}`]) {
+      element.style.backgroundColor = savedColors[`${namespace}_${eventTime}`];
+    }
+  }
+}
+
+// Apply button event
+applyButton.addEventListener('click', () => {
+  const namespace = namespaceInput.value.trim();
+  const color = colorInput.value.trim();
+  const time = normalizeTime(timeInput.value.trim());
+
+  // Apply color either to selected element or matching events
+  if (selectedElement) {
+    selectedElement.style.backgroundColor = color || defaultColors[selectedElement.dataset.eventid] || '';
   } else {
     document.querySelectorAll(".GTG3wb").forEach((element) => {
       const nameElement = element.querySelector(".I0UMhf");
@@ -156,40 +220,198 @@ function saveCustomBackgroundColor() {
       const timeMatches = time && eventTime.includes(time);
 
       if (nameMatches && (!time || timeMatches)) {
-        if (color) {
-          savedColors[element.dataset.eventid] = color;
-        } else {
-          delete savedColors[element.dataset.eventid];
-        }
+        element.style.backgroundColor = color || defaultColors[element.dataset.eventid] || '';
       }
     });
   }
 
-  localStorage.setItem('savedColors', JSON.stringify(savedColors));
-}
-
-// Function to reapply saved colors dynamically
-function reapplySavedColors() {
-  document.querySelectorAll(".GTG3wb").forEach((element) => {
-    if (savedColors[element.dataset.eventid]) {
-      element.style.backgroundColor = savedColors[element.dataset.eventid];
-    }
-  });
-}
-
-// Observe DOM changes and reapply saved colors dynamically
-const observer = new MutationObserver(() => {
-  reapplySavedColors();
-  attachEventClickListeners(); // Reattach event listeners in case new events are added dynamically
+  // Save the color after applying
+  saveCustomBackgroundColor();
 });
-
-observer.observe(document.body, { childList: true, subtree: true });
-
-// Apply button event
-applyButton.addEventListener('click', applyBackgroundColor);
 
 // Save button event
 saveButton.addEventListener('click', saveCustomBackgroundColor);
+
+// Event listener for interactions or updates
+document.querySelectorAll(".GTG3wb").forEach((element) => {
+  element.addEventListener("click", handleEventInteraction);
+  element.addEventListener("input", handleEventInteraction); // If events have input fields, listen for updates
+});
+
+// Reapply colors on page load or refresh
+reapplySavedColors();
+
+// Use MutationObserver to watch for DOM changes and reapply colors
+const observer = new MutationObserver(() => {
+  reapplySavedColors();
+});
+
+// Start observing the document for changes
+observer.observe(document.body, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+});
+
+// To ensure that the background color is preserved even when dynamically updated elements are created or modified
+document.addEventListener("DOMContentLoaded", () => {
+  // Reapply colors after the initial load
+  reapplySavedColors();
+});
+
+// Handling element deletion
+function handleElementDeletion(element) {
+  const eventId = element.dataset.eventid;
+  const namespaceElement = element.querySelector(".I0UMhf");
+  const eventTime = extractEventTime(element);
+  const namespace = getElementText(namespaceElement);
+
+  // If an element is deleted, ensure default settings are reapplied for other elements
+  if (savedColors[eventId]) {
+    element.style.backgroundColor = savedColors[eventId];
+  } else if (savedColors[`${namespace}_${eventTime}`]) {
+    element.style.backgroundColor = savedColors[`${namespace}_${eventTime}`];
+  } else {
+    // If no color is saved, apply the default color
+    element.style.backgroundColor = defaultColors[eventId] || '';
+  }
+
+  // Remove from the saved colors if the element is deleted
+  delete savedColors[eventId];
+  delete savedColors[`${namespace}_${eventTime}`];
+  localStorage.setItem('savedColors', JSON.stringify(savedColors));
+}
+
+// Example of deleting an element (this can be modified based on your deletion logic)
+document.querySelectorAll(".GTG3wb .delete-btn").forEach((deleteButton) => {
+  deleteButton.addEventListener("click", (event) => {
+    const element = event.target.closest(".GTG3wb");
+    handleElementDeletion(element);
+    element.remove();
+  });
+});
+
+
+// Create the "View Saved Settings" button
+const viewSavedButton = document.createElement('button');
+viewSavedButton.textContent = 'View Saved Settings';
+document.body.prepend(viewSavedButton);
+
+// Create the modal container
+const savedSettingsModal = document.createElement('div');
+savedSettingsModal.style.position = 'fixed';
+savedSettingsModal.style.top = '50%';
+savedSettingsModal.style.left = '50%';
+savedSettingsModal.style.transform = 'translate(-50%, -50%)';
+savedSettingsModal.style.backgroundColor = 'white';
+savedSettingsModal.style.border = '1px solid black';
+savedSettingsModal.style.padding = '10px';
+savedSettingsModal.style.display = 'none';
+savedSettingsModal.style.zIndex = '1000';
+
+// Create the modal title
+const modalTitle = document.createElement('h3');
+modalTitle.textContent = 'Saved Settings';
+savedSettingsModal.appendChild(modalTitle);
+
+// Create the close button
+const closeModalButton = document.createElement('button');
+closeModalButton.textContent = 'Close';
+closeModalButton.addEventListener('click', () => {
+  savedSettingsModal.style.display = 'none';
+});
+savedSettingsModal.appendChild(closeModalButton);
+
+// Create the settings list container
+const settingsList = document.createElement('ul');
+savedSettingsModal.appendChild(settingsList);
+
+// Function to populate the saved settings modal
+function populateSavedSettings() {
+  settingsList.innerHTML = ''; // Clear previous list
+
+  Object.keys(savedColors).forEach(eventId => {
+    const listItem = document.createElement('li');
+
+    // Create a button to toggle the event ID visibility
+    const eventIdButton = document.createElement('button');
+    eventIdButton.textContent = 'Event ID';
+    eventIdButton.style.marginRight = '10px';
+    eventIdButton.style.marginBottom = '10px';
+    eventIdButton.style.cursor = 'pointer';
+
+    let isHidden = true;
+    eventIdButton.addEventListener('click', () => {
+      isHidden = !isHidden;
+      eventIdButton.textContent = isHidden ? 'Event ID' : eventId;
+    });
+
+    // Create a container for the color info
+    const colorContainer = document.createElement('span');
+    colorContainer.textContent = 'Color: ';
+    colorContainer.style.fontWeight = 'bold';
+    colorContainer.style.marginBottom = '10px';
+
+    // Create the color picker input
+    const colorPicker = document.createElement('input');
+    colorPicker.type = 'color';
+    colorPicker.value = savedColors[eventId] || '#ffffff'; // Default to white if no saved color
+
+    // Event listener for when the color is selected
+    colorPicker.addEventListener('input', () => {
+      const newColor = colorPicker.value;
+      savedColors[eventId] = newColor;  // Update the saved color in localStorage
+      localStorage.setItem('savedColors', JSON.stringify(savedColors));  // Save updated colors to localStorage
+    });
+
+    // Append the color picker instead of the hex code
+    colorContainer.appendChild(colorPicker);
+
+    // Create the delete button
+    const deleteButton = document.createElement('button');
+    deleteButton.textContent = 'Delete';
+    deleteButton.style.marginLeft = '10px';
+    deleteButton.style.marginBottom = '10px';
+
+    deleteButton.addEventListener('click', () => {
+      // Find the affected element
+      const affectedElement = document.querySelector(`.GTG3wb[data-eventid="${eventId}"]`);
+
+      if (affectedElement) {
+        // Reset to the default background color if available
+        affectedElement.style.backgroundColor = defaultColors[eventId] || '';
+      }
+
+      // Remove from saved settings
+      delete savedColors[eventId];
+      localStorage.setItem('savedColors', JSON.stringify(savedColors));
+
+      // Refresh the list and elements
+      reapplySavedColors();
+      populateSavedSettings(); // Refresh the list UI
+    });
+
+    // Append elements to the list item
+    listItem.appendChild(eventIdButton);
+    listItem.appendChild(colorContainer);
+    listItem.appendChild(deleteButton);
+    settingsList.appendChild(listItem);
+  });
+
+  if (Object.keys(savedColors).length === 0) {
+    settingsList.textContent = 'No saved settings.';
+  }
+}
+
+
+// View Saved Settings button event
+viewSavedButton.addEventListener('click', () => {
+  savedSettingsModal.style.display = 'block';
+  populateSavedSettings(); // Populate the modal with saved settings
+});
+
+// Append the modal to the body
+document.body.appendChild(savedSettingsModal);
 
 // Ensure default colors are saved before applying custom colors on page load
 window.addEventListener('load', () => {

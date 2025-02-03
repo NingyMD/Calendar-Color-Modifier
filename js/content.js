@@ -13,7 +13,7 @@ colorInput.placeholder = 'Enter background color';
 timeInput.placeholder = 'Enter event time';
 applyButton.textContent = 'Apply';
 saveButton.textContent = 'Save';
-clearSelectionButton.textContent = 'Clear Selection'; // Button text
+clearSelectionButton.textContent = 'Clear Selected'; // Button text
 
 // Set up the color picker
 colorPicker.type = 'color';
@@ -39,7 +39,6 @@ document.body.prepend(colorInput);
 document.body.prepend(colorPicker);
 document.body.prepend(applyButton);
 document.body.prepend(saveButton);
-document.body.style.backgroundColor = "#f8fafd";
 
 // Function to clear selected event
 clearSelectionButton.addEventListener('click', () => {
@@ -51,17 +50,56 @@ clearSelectionButton.addEventListener('click', () => {
 
 // Retrieve stored colors from localStorage
 const savedColors = JSON.parse(localStorage.getItem('savedColors')) || {};
-const defaultColors = JSON.parse(localStorage.getItem('defaultColors')) || {};
 
-// Function to save default background colors
-function saveDefaultBackgroundColors() {
-  document.querySelectorAll(".GTG3wb").forEach((element) => {
-    if (!defaultColors[element.dataset.eventid]) {
-      defaultColors[element.dataset.eventid] = element.style.backgroundColor || '';
-    }
-  });
-  localStorage.setItem('defaultColors', JSON.stringify(defaultColors));
+// Object to store default colors before any modifications
+const defaultColors = {};
+const customColors = {}; // Object to track custom colors applied
+
+// Function to apply background color to the selected event or matching events
+function applyBackgroundColor() {
+  const namespace = namespaceInput.value.trim();
+  const color = colorInput.value.trim();
+  const time = normalizeTime(timeInput.value.trim());
+
+  if (selectedElement) {
+    saveDefaultColor(selectedElement);
+    applyColor(selectedElement, color);
+  } else {
+    document.querySelectorAll(".GTG3wb").forEach((element) => {
+      const nameElement = element.querySelector(".I0UMhf");
+      const eventTime = extractEventTime(element);
+
+      const nameMatches = nameElement && getElementText(nameElement) === namespace;
+      const timeMatches = time && eventTime.includes(time); // Only filter by time if time is provided
+
+      if (nameMatches && (!time || timeMatches)) { // Skip time filter if time is empty
+        saveDefaultColor(element);
+        applyColor(element, color);
+      }
+    });
+  }
 }
+
+// Function to save the default background color of an event before applying changes
+function saveDefaultColor(element) {
+  const eventId = element.dataset.eventid;
+  if (!defaultColors[eventId]) {
+    defaultColors[eventId] = element.style.backgroundColor || '';
+  }
+}
+
+// Function to apply a custom color or revert to the default if no custom color is provided
+function applyColor(element, color) {
+  const eventId = element.dataset.eventid;
+
+  if (color) {
+    customColors[eventId] = color;
+    element.style.backgroundColor = color;
+  } else {
+    element.style.backgroundColor = customColors[eventId] || defaultColors[eventId] || '';
+  }
+}
+
 
 // Function to normalize time input (convert different dash types and spaces)
 function normalizeTime(text) {
@@ -104,18 +142,24 @@ function handleEventSelection(event) {
   const nameElement = selectedElement.querySelector('.I0UMhf');
   if (nameElement) {
     namespaceInput.value = getElementText(nameElement);
+    console.log('Event Name:', getElementText(nameElement)); // Check if event name is correct
   }
 
   const eventTime = extractEventTime(selectedElement);
   timeInput.value = eventTime;
+  console.log('Event Time:', eventTime); // Check if event time is correct
 }
 
-// Attach click event to each event block
+
+// Function to attach click event to each event block for selection
 function attachEventClickListeners() {
   document.querySelectorAll(".GTG3wb").forEach((element) => {
+    // Remove existing event listeners to prevent duplicates
+    element.removeEventListener("click", handleEventSelection);
     element.addEventListener("click", handleEventSelection);
   });
 }
+
 
 // Function to apply background color to the selected event or matching events
 function applyBackgroundColor() {
@@ -131,35 +175,15 @@ function applyBackgroundColor() {
       const eventTime = extractEventTime(element);
 
       const nameMatches = nameElement && getElementText(nameElement) === namespace;
-      const timeMatches = time && eventTime.includes(time);  // Only filter by time if time is not empty
+      const timeMatches = time && eventTime.includes(time);
 
-      if (nameMatches && (!time || timeMatches)) {  // Skip time filter if time is empty
+      if (nameMatches && (!time || timeMatches)) {
         element.style.backgroundColor = color || defaultColors[element.dataset.eventid] || '';
       }
     });
   }
 }
 
-
-// Function to save the background color
-function saveCustomBackgroundColor() {
-  const namespace = namespaceInput.value.trim();
-  const color = colorInput.value.trim();
-  const time = normalizeTime(timeInput.value.trim());
-
-  if (selectedElement) {
-    // Save by unique event ID if an element is selected
-    savedColors[selectedElement.dataset.eventid] = color;
-  } else {
-    // Save by Name and Time if no specific element is selected
-    const key = `${namespace}_${time}`;
-    savedColors[key] = color;
-  }
-
-  // Immediately save to localStorage and reapply colors
-  localStorage.setItem('savedColors', JSON.stringify(savedColors));
-  reapplySavedColors();  // Reapply saved colors after saving
-}
 
 // Function to reapply saved colors dynamically
 function reapplySavedColors() {
@@ -241,9 +265,10 @@ document.querySelectorAll(".GTG3wb").forEach((element) => {
 // Reapply colors on page load or refresh
 reapplySavedColors();
 
-// Use MutationObserver to watch for DOM changes and reapply colors
+// Use MutationObserver to watch for DOM changes and reattach event listeners
 const observer = new MutationObserver(() => {
   reapplySavedColors();
+  attachEventClickListeners(); // Ensure event selection works on dynamic elements
 });
 
 // Start observing the document for changes

@@ -13,7 +13,7 @@ colorInput.placeholder = 'Enter background color';
 timeInput.placeholder = 'Enter event time';
 applyButton.textContent = 'Apply';
 saveButton.textContent = 'Save';
-clearFiltersButton.textContent = 'Clear Filters';
+clearFiltersButton.textContent = 'Remove ID Filter';
 
 // Set up the color picker
 colorPicker.type = 'color';
@@ -42,10 +42,6 @@ document.body.prepend(saveButton);
 
 // Clear Filters Functionality
 clearFiltersButton.addEventListener('click', () => {
-  namespaceInput.value = '';
-  timeInput.value = '';
-  colorInput.value = '';
-  colorPicker.value = '#ffffff'; // Reset color picker to white
   selectedElement = null; // Deselect any selected event
 });
 
